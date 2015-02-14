@@ -25,7 +25,15 @@ shinyUI(fluidPage(
     
     numericInput("sampleLabel", label = "Sample labels row", min = 1, max = 5, value = NULL, step = 1),
     numericInput("batchLabel", label = "Batch labels row", min = 1, max = 5, value = NULL, step = 1),
-    numericInput("expressionStart", label = "Expression data row", min = 1, max = 5, value = NULL, step = 1)
+    numericInput("expressionStart", label = "Expression data row", min = 1, max = 5, value = NULL, step = 1),
+    textInput("dir", "Paste the filepath to save the output", value = getwd()),
+    textInput("fname", "Type the file name you would like to save as", value = "result"),
+    conditionalPanel(condition = "input.analysisType == 'Classification'",
+      actionButton("saveButton", "Save")   
+    ),
+    conditionalPanel(condition = "input.analysisType == 'Survival' || input.analysisType == 'Regression'",
+      actionButton("saveButton2", "Save")    
+    )
     ),
     
     wellPanel(
@@ -62,7 +70,7 @@ shinyUI(fluidPage(
     
     conditionalPanel(condition = "input.analysisType == 'Classification'",       
       tabsetPanel(id = "PAM",
-        tabPanel("Data", h3(textOutput("originalDataText")), dataTableOutput("dat"), h3(textOutput("imputedDataText")), dataTableOutput("imputedX"), h3(textOutput("transformDataText")), dataTableOutput("transform") ),          
+        tabPanel("Data", h3(textOutput("originalDataText")), dataTableOutput("dat"), h3(textOutput("imputedDataText")), dataTableOutput("imputedX"), h3(textOutput("testDataText")), dataTableOutput("testdat") ),          
         tabPanel("Training", h3(textOutput("trainErrorPlotText")), plotOutput("plotTrainError"), h3(textOutput("confusionTrainText")), tableOutput("pamrConfusionTrain"), h3(textOutput("listgenesText")), tableOutput("listgenes"), h3(textOutput("centroidText")),plotOutput("plotcen"), h3(textOutput("fdrText")), tableOutput("fdr"), h3(textOutput("fdrPlotText")), plotOutput("fdrPlot")),
         tabPanel("Cross Validation", h3(textOutput("overallText")), plotOutput("plotcv"), h3(textOutput("individualText")), plotOutput("plotcv2"), h3(textOutput("plotcvText")), plotOutput("plotcvprob"), h3(textOutput("cvConfusionMatrix")), tableOutput("pamrConfusion")),
         tabPanel("Test Set Prediction", fileInput(inputId = "testFile", label = "Test Set", accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), h3(textOutput("testErrorPlotText")), plotOutput("plotTestError"), h3(textOutput("predictPlotText")), plotOutput("plotpredprob"), h3(textOutput("predictTableText")), tableOutput("predict") ),
@@ -72,7 +80,7 @@ shinyUI(fluidPage(
     
     conditionalPanel(condition = "input.analysisType == 'Survival' || input.analysisType == 'Regression'",
       tabsetPanel(id = "PAMSurv",
-        tabPanel("Data", h3(textOutput("originalXText")), dataTableOutput("survdata"), h3(textOutput("imputedXSurvText")), dataTableOutput("imputedXSurv"), h3(textOutput("transformSurvText")), dataTableOutput("transformSurv"), h3(textOutput("decorrelateXText")), dataTableOutput("decorrelateX")),
+        tabPanel("Data", h3(textOutput("originalXText")), dataTableOutput("survdata"), h3(textOutput("imputedXSurvText")), dataTableOutput("imputedXSurv"), h3(textOutput("testSurvText")), dataTableOutput("survTestData")),
         tabPanel("Training", fileInput(inputId = "competingPredictorFile", label = "Competing Predictors", accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), h3(textOutput("survTrainErrorText")), plotOutput("plotLrtest"), h3(textOutput("listSurvGenesText")), tableOutput("listfeatures"), h3(textOutput("responsePredictionText")), plotOutput("survPredictionPlot")),
         tabPanel("Cross Validation", h3(textOutput("plotCvSurvText")), plotOutput("plotcvsurv"), h3(textOutput("plotredLrtestText")), plotOutput("plotredLrtest")),
         tabPanel("Test Set Prediction", fileInput(inputId = "testFileSurv", label = "Test Set", accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), fileInput(inputId = "competingPredictorFitFile", label = "Fit with Competing Predictors", accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"), h3(textOutput("lrtestObjTestText")), plotOutput("plotLrtestTest"), h3(textOutput("predictionInfoText")), tableOutput("predictionscore"), tableOutput("coeftable"), tableOutput("teststatTable"), h3(textOutput("responsePredictionPlotText")), plotOutput("responsePredictionPlot"), h3(textOutput("rainbowPlotText")), plotOutput("rainbowPlot"))        

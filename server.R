@@ -36,7 +36,6 @@ shinyServer(function(input, output) {
         sample = as.matrix(dat[sampleLabel, c(-1,-2)])  
       }
       
-      
       y = as.matrix(dat[classLabel,c(-1,-2)])
       y = factor(y)        
 
@@ -66,7 +65,7 @@ shinyServer(function(input, output) {
         x = mydata2$x  
       }
       
-      data = list(x = x, y = y, genenames = genenames, geneid = geneid, dat = dat, sample = sample, transformed = transformed, imputedX = imputedX)
+      data = list(x = x, y = y, genenames = genenames, geneid = geneid, dat = dat, sample = sample, imputedX = imputedX)
       data
     }
   })
@@ -93,7 +92,7 @@ shinyServer(function(input, output) {
         sample = as.matrix(dat[sampleLabel, c(-1,-2)])  
       }
       
-      list(x = x, y = y, sample = sample)
+      list(x = x, y = y, sample = sample, dat = dat)
     }
   })
   
@@ -294,12 +293,10 @@ shinyServer(function(input, output) {
     }
   })
   
-  output$transform = renderDataTable({
-    data = getData()
+  output$testdat = renderDataTable({
+    data = getTestData()
     if(!is.null(data)){
-      if(input$cuberoot || input$center || input$scale){
-        data$transformed
-      }
+      data$dat
     }
   })
   
@@ -375,7 +372,6 @@ shinyServer(function(input, output) {
     if(!is.null(testData) && !is.null(pamrTrain)){
       pamr.plotTestError(pamrTrain, testData)
     }
-    
   })
   
   #############
@@ -383,17 +379,15 @@ shinyServer(function(input, output) {
   output$originalDataText = renderText({
     data = getData()
     if(!is.null(data)){
-      "Original Data"
+      "Data"
     }
   })
   
-  output$transformDataText = renderText({
-    data = getData()
+  output$testDataText = renderText({
+    data = getTestData()
     if(!is.null(data)){
-      if(input$cuberoot || input$center || input$scale){
-        "Transformed Data"
-      }
-    }    
+      "Test Data"
+    }
   })
   
   output$imputedDataText = renderText({
@@ -531,6 +525,220 @@ shinyServer(function(input, output) {
     }
   })
   
+  
+  #######Save Classification results
+  savethis = observe({
+    
+  if(input$saveButton != 0){
+    
+  isolate({  
+  dir = input$dir
+  file = input$fname
+      
+  pamrTrain = getPamrTrain()
+  pamrConfusion = getPamrConfusionTrain()
+  listgenes = getPamrListGenes()
+  data = getData()
+  testData = getTestData()
+  fdr = getFDR()
+  pamrCv = getPamrCv()
+  pamrConfusionCV = getPamrConfusion()
+  settings = getSettings()  
+  predict = getPamrPredict()
+  
+  titleStyle = createStyle(fontSize = 14, fontColour = "#FFFFFF", halign = "center", fgFill = "#4F81BD")
+  wb = createWorkbook()  
+  
+  if(!is.null(data)){
+    addWorksheet(wb, sheetName = "Data")
+    writeData(wb, sheet = "Data", x = data$dat)    
+  }
+  
+  if(!is.null(data)){
+    if(!is.null(data$imputedX)){
+      addWorksheet(wb, sheetName = "Imputed Data")
+      writeData(wb, sheet = "Imputed Data", x = data$imputedX)
+    }
+  }
+  
+  if(!is.null(testData)){
+    addWorksheet(wb, sheetName = "Test Data")
+    writeData(wb, sheet = "Test Data", x = testData$dat)
+  }
+  
+  if(!is.null(pamrTrain)){
+    png(file = "TrainError.png")
+    pamr.plotTrainError(pamrTrain)
+    dev.off()
+  }
+  
+  if(!is.null(pamrTrain)){      
+    addWorksheet(wb, sheetName = "Training")
+    addStyle(wb, sheet = "Training", titleStyle, rows = 1, cols = 1)
+    writeData(wb, sheet = "Training", x = "Train Error")  
+    insertImage(wb, sheet = "Training", file = "TrainError.png", width = 4, height = 4, startRow = 2)
+    setColWidths(wb, "Training", cols= 1, widths = 30)    
+  }
+  
+  TrainingRow = 23
+  if(!is.null(pamrConfusion)){
+    tt = pamrConfusion$tt
+    True__Predicted = dimnames(tt)[[2]][-ncol(tt)]
+    pamrConfusionTrain = cbind(True__Predicted, pamrConfusion$tt)
+    addStyle(wb, sheet = "Training", titleStyle, rows = TrainingRow, cols = 1)
+    writeData(wb, sheet = "Training", x = "Training Confusion Matrix", startRow = TrainingRow)
+    writeData(wb, pamrConfusionTrain, sheet = "Training", startRow = TrainingRow + 1)
+    TrainingRow = TrainingRow + nrow(pamrConfusionTrain) + 3    
+  }
+  
+  if(!is.null(listgenes)){
+    addStyle(wb, sheet = "Training", titleStyle, rows = TrainingRow, cols = 1)
+    writeData(wb, sheet = "Training", x = "List of Significant Genes", startRow = TrainingRow)
+    writeData(wb, sheet = "Training", x = listgenes, startRow = TrainingRow + 1)
+    TrainingRow = TrainingRow + nrow(listgenes) + 3 
+  }
+      
+  if(!is.null(pamrTrain) && !is.na(input$threshold)){
+    png(file = "centroid.png")
+    pamr.plotcen(pamrTrain, data, threshold = input$threshold)
+    dev.off()
+  }
+  
+  if(!is.null(pamrTrain) && !is.na(input$threshold)){
+    addStyle(wb, sheet = "Training", titleStyle, rows = TrainingRow, cols = 1)
+    writeData(wb, sheet = "Training", x = "Shrunken class centroid", startRow = TrainingRow)
+    insertImage(wb, sheet = "Training", file = "centroid.png", width = 4, height = 4, startRow = TrainingRow + 1)
+    TrainingRow = TrainingRow + 22
+  }
+  
+  if(!is.null(fdr)){
+    addStyle(wb, sheet = "Training", titleStyle, rows = TrainingRow, cols = 1)
+    writeData(wb, sheet = "Training", x = "FDR results", startRow = TrainingRow)
+    writeData(wb, sheet = "Training", x = fdr$result, startRow = TrainingRow + 1)
+    TrainingRow = TrainingRow + nrow(fdr$results) + 3 
+  }
+  
+  if(!is.null(fdr)){
+    png(file = "fdr.png")
+    pamr.plotfdr.revised(fdr)
+    dev.off()
+  }
+  
+  if(!is.null(fdr)){
+    addStyle(wb, sheet = "Training", titleStyle, rows = TrainingRow, cols = 1)
+    writeData(wb, sheet = "Training", x = "FDR Plot", startRow = TrainingRow)
+    insertImage(wb, sheet = "Training", file = "fdr.png", width = 4, height = 4, startRow = TrainingRow + 1)
+    TrainingRow = TrainingRow + 22
+  }
+  
+  if(!is.null(pamrCv)){
+    png(file = "plotcv1.png")
+    pamr.plotcv.revised(pamrCv, 1)
+    dev.off()
+  }
+  
+  if(!is.null(pamrCv)){
+    png(file = "plotcv2.png")
+    pamr.plotcv.revised(pamrCv, 2)
+    dev.off()
+  }
+  
+  cvRow = 0
+  if(!is.null(pamrCv)){
+    addWorksheet(wb, sheetName = "Cross Validation")
+    setColWidths(wb, "Cross Validation", cols= 1, widths = 30)    
+    addStyle(wb, sheet = "Cross Validation", titleStyle, rows = 1, cols = 1)
+    writeData(wb, sheet = "Cross Validation", x = "Overall CV Plot")
+    insertImage(wb, sheet = "Cross Validation", file = "plotcv1.png", width = 4, height = 4, startRow = 2)
+    addStyle(wb, sheet = "Cross Validation", titleStyle, rows = 24, cols = 1)
+    writeData(wb, sheet = "Cross Validation", x = "Individual CV Plots", startRow = 24)
+    insertImage(wb, sheet = "Cross Validation", file = "plotcv2.png", width = 4, height = 4, startRow = 25)
+    cvRow = 47
+  }
+  
+  if(!is.null(pamrCv) && !is.na(input$threshold)){
+    png(file = "cvprob.png")
+    pamr.plotcvprob(pamrCv, data, threshold = input$threshold)
+    dev.off()
+  }
+  
+  if(!is.null(pamrCv) && !is.na(input$threshold)){
+    addStyle(wb, sheet = "Cross Validation", titleStyle, rows = cvRow, cols = 1)
+    writeData(wb, sheet = "Cross Validation", x = "CV Probabilities Plot", startRow = cvRow)
+    insertImage(wb, sheet = "Cross Validation", file = "cvprob.png", width = 4, height = 4, startRow = cvRow+1)
+    cvRow = cvRow + 22    
+    
+    addStyle(wb, sheet = "Cross Validation", titleStyle, rows = cvRow, cols = 1)
+    writeData(wb, sheet = "Cross Validation", x = "CV Confusion Matrix", startRow = cvRow)
+    tt = pamrConfusionCV$tt
+    True__Predicted = dimnames(tt)[[2]][-ncol(tt)]
+    CVConf = cbind(True__Predicted, pamrConfusion$tt)
+    writeData(wb, sheet = "Cross Validation", x = CVConf, startRow = cvRow+1)    
+  }
+  
+  if(!is.null(testData) && !is.null(pamrTrain)){
+    png(file = "testerror.png")
+    pamr.plotTestError(pamrTrain, testData)
+    dev.off()
+  }
+  
+  
+  if(!is.null(testData) && !is.null(pamrTrain)){
+    addWorksheet(wb, sheetName = "Test Set Prediction")
+    setColWidths(wb, "Test Set Prediction", cols= 1, widths = 30)    
+    addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = 1, cols = 1)
+    writeData(wb, sheet = "Test Set Prediction", x = "Test Error")
+    insertImage(wb, sheet = "Test Set Prediction", file = "testerror.png", width = 4, height = 4, startRow = 2)
+  }
+  
+  if(!is.null(testData) && !is.null(pamrTrain) && !is.na(input$threshold)){
+    png(file = "testprob.png")
+    pamr.plotpredprob(pamrTrain, testData, input$threshold)
+    dev.off()
+  }
+  
+  if(!is.null(testData) && !is.null(pamrTrain) && !is.na(input$threshold)){
+    testRow = 23
+    addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = testRow, cols = 1)
+    writeData(wb, sheet = "Test Set Prediction", x = "Test Probabilities", startRow = testRow)
+    insertImage(wb, sheet = "Test Set Prediction", file = "testprob.png", width = 4, height = 4, startRow = testRow + 1)
+    testRow = 47
+    addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = testRow, cols = 1)
+    writeData(wb, sheet = "Test Set Prediction", x = "Actual, Predicted Classes and Predicted Posterior Probabilities", startRow = testRow)
+    writeData(wb, sheet = "Test Set Prediction", x = predict, startRow = testRow + 1)
+  }
+
+  if(!is.null(settings)){
+    addWorksheet(wb, sheetName = "Settings")
+    setColWidths(wb, "Settings", cols= 1, widths = 30)    
+    addStyle(wb, sheet = "Settings", titleStyle, rows = 1, cols = 1)
+    writeData(wb, sheet = "Settings", x = "Settings", startRow = 1)
+    writeData(wb, sheet = "Settings", x = settings$settingMatrix, startRow = 2)
+    addStyle(wb, sheet = "Settings", titleStyle, rows = 9, cols = 1)
+    writeData(wb, sheet = "Settings", x = "Prior Distribution", startRow = 9)
+    priordummy = settings$settingsPriorMatrix[2,]
+    priorMatrix = matrix(priordummy, ncol = length(priordummy))
+    colnames(priorMatrix) = settings$settingsPriorMatrix[1,]
+    writeData(wb, sheet = "Settings", x = priorMatrix, startRow = 10)
+  }
+  
+  
+  if(!is.null(pamrTrain)){
+    fname = paste(file, "xlsx", sep = ".")
+    saveWorkbook(wb, file.path(dir, fname), overwrite = TRUE)
+  
+    if(Sys.info()[['sysname']] == "Windows"){
+      shell(file.path(dir, fname))  
+    } else if(Sys.info()[['sysname']] == "Darwin"){
+      system(paste("open", fname))
+    }
+  }
+  
+  })
+  }
+  })    
+      
+          
 
   ###################survival and regression problem
   
@@ -603,7 +811,7 @@ shinyServer(function(input, output) {
       decorrelateX = cbind(geneid, genenames, decorrelateX)
     }
     
-    data = list(x = x, y = y, featurenames = genenames, geneid = geneid, dat = dat, sample = sample, censoring.status = censoring.status, decorrelateX = decorrelateX, transformed = transformed, imputedX = imputedX)
+    data = list(x = x, y = y, featurenames = genenames, geneid = geneid, dat = dat, sample = sample, censoring.status = censoring.status, decorrelateX = decorrelateX, imputedX = imputedX)
     data
   }
   })
@@ -711,7 +919,6 @@ shinyServer(function(input, output) {
       } else if (input$analysisType == "Regression"){
         train.obj = superpc.train(data, type = "regression")
       }
-      print(input$analysisType)
       train.obj
     }
   })
@@ -854,7 +1061,6 @@ shinyServer(function(input, output) {
         superpc.rainbowplot(data, as.numeric(fit.red$v.test), sample.labels, competing.predictors)
       }      
     }
-    
   })
   
   
@@ -892,7 +1098,6 @@ shinyServer(function(input, output) {
       rownames(test) = "Overall model fit"
       test
     }
-
   }, digits = 5)
   
   output$coeftable = renderTable({
@@ -914,15 +1119,6 @@ shinyServer(function(input, output) {
     data = getDataSurv()
     if(!is.null(data$imputedX)){
       data$imputedX
-    }
-  })
-  
-  output$transformSurv = renderDataTable({
-    data = getDataSurv()
-    if(!is.null(data)){
-      if(input$cuberoot || input$center || input$scale){
-        data$transformed
-      }
     }
   })
   
@@ -962,6 +1158,13 @@ shinyServer(function(input, output) {
       data$dat
     }
   })
+  
+  output$survTestData = renderDataTable({
+    testData = getTestDataSurv()
+    if(!is.null(testData)){
+      testData$dat
+    }
+  })
 
   output$plotLrtest = renderPlot({
     lrtest.obj = getlrtestObj()
@@ -984,13 +1187,6 @@ shinyServer(function(input, output) {
     data = getDataSurv()
     if(!is.null(train.obj) && !is.na(input$threshold2)){
       superpc.predictionplot(train.obj, data, data, threshold = input$threshold2)      
-    }
-  })
-  
-  output$decorrelateX = renderDataTable({
-    data = getDataSurv()
-    if(!is.null(data)){
-      data$decorrelateX      
     }
   })
   
@@ -1019,24 +1215,15 @@ shinyServer(function(input, output) {
     if(!is.null(predict)){
       "Prediction info"
     }
-    
   })
   
   output$originalXText = renderText({
     data = getDataSurv()
     if(!is.null(data)){
-      "Original Data"      
+      "Data"      
     }
   })
   
-  output$decorrelateXText = renderText({
-    data = getDataSurv()
-    if(!is.null(data)){
-      if(!is.null(data$decorrelateX)){
-        "Decorrelated X"
-      }      
-    }
-  })
 
   
   output$survTrainErrorText = renderText({
@@ -1046,12 +1233,18 @@ shinyServer(function(input, output) {
     }
   })
   
+  output$testSurvText = renderText({
+    testData = getTestDataSurv()
+    if(!is.null(testData)){
+      "Test Data"
+    }
+  })
+  
   output$plotredLrtestText = renderText({
     fit.redcv = getPredictRedCv()
     if(!is.null(fit.redcv)){
       "Reduced Model CV"  
     }
-    
   })
   
   output$listSurvGenesText = renderText({
@@ -1065,15 +1258,6 @@ shinyServer(function(input, output) {
     train.obj = getSurvTrain()
     if(!is.null(train.obj) && !is.na(input$threshold2)){  
       "Response Prediction Plot"
-    }
-  })
-  
-  output$transformSurvText = renderText({
-    data = getDataSurv()
-    if(!is.null(data)){
-      if(input$cuberoot || input$center || input$scale){
-        "Transformed X"
-      }
     }
   })
   
@@ -1097,6 +1281,196 @@ shinyServer(function(input, output) {
       "Test Error"
     }
   })
+  
+  ####save result for survival
+  
+  savethis2 = observe({
+    
+  if(input$saveButton2 != 0){
+      
+  isolate({  
+    dir = input$dir
+    file = input$fname
+        
+    data = getDataSurv()
+    testData = getTestDataSurv()
+    train.obj = getSurvTrain()
+    lrtest.obj = getlrtestObj()
+    listfeatures = getListFeatures()
+    cv.obj = getSurvCv()
+    fit.redcv = getPredictRedCv()
+    lrtest.obj.test = getlrtestObjTest()
+    predict = getPredict()
+    outcome = getOutcome()
+    predictDiscrete = getPredictDiscrete()
+    competingPredictorFit = getCompetingPredictorFit()
+    fit.red = getPredictRedTest()
+       
+    
+    titleStyle = createStyle(fontSize = 14, fontColour = "#FFFFFF", halign = "center", fgFill = "#4F81BD")
+    wb = createWorkbook()  
+    
+    if(!is.null(data)){
+      addWorksheet(wb, sheetName = "Data")
+      writeData(wb, sheet = "Data", x = data$dat, startRow = 1)      
+    }
+    
+    if(!is.null(testData)){
+      addWorksheet(wb, sheetName = "Test Data")
+      writeData(wb, sheet = "Test Data", x = testData$dat, startRow = 1)      
+    }
+    
+    if(!is.null(lrtest.obj)){
+      png(file = "lrtesttrain.png")
+      superpc.plot.lrtest(lrtest.obj)  
+      axis(3, at = lrtest.obj$threshold, labels = lrtest.obj$num.features) 
+      dev.off()
+    }
+    
+    trainRow = 0
+    if(!is.null(lrtest.obj)){
+      addWorksheet(wb, sheetName = "Training")
+      setColWidths(wb, "Training", cols= 1, widths = 30)    
+      addStyle(wb, sheet = "Training", titleStyle, rows = 1, cols = 1)
+      writeData(wb, sheet = "Training", x = "Training Error", startRow = 1)
+      insertImage(wb, sheet = "Training", file = "lrtesttrain.png", width = 4, height = 4, startRow = 2)
+      trainRow = 24
+    }
+
+    if(!is.null(listfeatures)){
+      addStyle(wb, sheet = "Training", titleStyle, rows = trainRow, cols = 1)
+      writeData(wb, sheet = "Training", x = "List of Significant Genes", startRow = trainRow)
+      writeData(wb, sheet = "Training", x = listfeatures, startRow = trainRow + 1)
+      trainRow = trainRow + nrow(listfeatures) + 3
+    }
+    
+    if(!is.null(train.obj) && !is.na(input$threshold2)){
+      png(file = "survresponseprediction.png")
+      superpc.predictionplot(train.obj, data, data, threshold = input$threshold2)            
+      dev.off()
+    }
+    
+    if(!is.null(train.obj) && !is.na(input$threshold2)){ 
+      addStyle(wb, sheet = "Training", titleStyle, rows = trainRow, cols = 1)
+      writeData(wb, sheet = "Training", x = "Response Prediction Row", startRow = trainRow)
+      insertImage(wb, sheet = "Training", file = "survresponseprediction.png", width = 4, height = 4, startRow = trainRow + 1)
+    }
+    
+    if(!is.null(cv.obj)){
+      png(file = "cvcurves.png")
+      superpc.plotcv(cv.obj) 
+      dev.off()      
+    }
+    
+    cvRow = 0
+    if(!is.null(cv.obj)){
+      addWorksheet(wb, sheetName = "Cross Validation")
+      setColWidths(wb, "Cross Validation", cols= 1, widths = 30)    
+      addStyle(wb, sheet = "Cross Validation", titleStyle, rows = 1, cols = 1)
+      writeData(wb, sheet = "Cross Validation", x = "CV curves", startRow = 1)
+      insertImage(wb, sheet = "Cross Validation",  file = "cvcurves.png", width = 4, height = 4, startRow = 2)
+      cvRow = 24
+    }
+    
+    if(!is.null(fit.redcv)){
+      png(file = "reducedmodelcv.png")
+      superpc.plotred.lrtest(fit.redcv) 
+      dev.off()
+    }
+    
+    if(!is.null(fit.redcv)){
+      addStyle(wb, sheet = "Cross Validation", titleStyle, rows = cvRow, cols = 1)
+      writeData(wb, sheet = "Cross Validation", x = "Reduced model CV", startRow = cvRow)
+      insertImage(wb, sheet = "Cross Validation",  file = "reducedmodelcv.png", width = 4, height = 4, startRow = cvRow + 1)
+    }
+    
+
+    if(!is.null(lrtest.obj.test)){
+      png(file = "testError.png")
+      superpc.plot.lrtest(lrtest.obj.test)
+      axis(3, at = lrtest.obj.test$threshold, labels = lrtest.obj.test$num.features)
+      dev.off()
+    }
+    
+    testRow = 0
+    if(!is.null(lrtest.obj.test)){
+      addWorksheet(wb, sheetName = "Test Set Prediction")
+      setColWidths(wb, "Test Set Prediction", cols= 1, widths = 30)    
+      addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = 1, cols = 1)
+      writeData(wb, sheet = "Test Set Prediction", x = "Test Error", startRow = 1)
+      insertImage(wb, sheet = "Test Set Prediction",  file = "testError.png", width = 4, height = 4, startRow = 2)
+      testRow = 24
+    }
+
+    
+    if(!is.null(predict)){
+      if(is.na(input$shrinkage)){
+        predictMatrix = matrix(predict$v.pred.1df, nrow = 1)  
+      } else{
+        predictMatrix = matrix(as.numeric(fit$v.test.1df), nrow = 1)
+      }
+      
+      rownames(predictMatrix) = "Prediction Score"
+      if(!is.null(testData$sample)){
+        colnames(predictMatrix) = testData$sample
+      }
+      addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = testRow, cols = 1)
+      writeData(wb, sheet = "Test Set Prediction", x = "Prediction info", startRow = testRow)
+      writeData(wb, sheet = "Test Set Prediction", x = predictMatrix, startRow = testRow + 1)
+      testRow = testRow + 4
+      
+      writeData(wb, sheet = "Test Set Prediction", x = outcome$coeftable, startRow = testRow)
+      testRow = testRow + 3
+      writeData(wb, sheet = "Test Set Prediction", x = outcome$teststat.table, startRow = testRow)
+      testRow = testRow + 3
+    }
+
+    if(!is.null(predictDiscrete)){
+      png(file = "testresponseprediction.png")
+      plot(survfit(Surv(testData$y,testData$censoring.status)~predictDiscrete$v.pred), col=2:3, xlab="time", ylab="Prob survival")  
+      dev.off()
+    }
+    
+    if(!is.null(predictDiscrete)){
+      addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = testRow, cols = 1)
+      writeData(wb, sheet = "Test Set Prediction", x = "Response Prediction Plot", startRow = testRow)
+      insertImage(wb, sheet = "Test Set Prediction",  file = "testresponseprediction.png", width = 4, height = 4, startRow = testRow + 1)
+      testRow = testRow + 24
+    }
+
+    
+    if(!is.null(data) && !is.null(testData) && !is.null(competingPredictorFit) && !is.na(input$threshold2) && !is.na(input$princomp)){
+      sample.labels = competingPredictorFit$sample.labels
+      competing.predictors = competingPredictorFit$competing.predictors
+      png(file = "rainbowplot.png")
+      if(is.na(input$shrinkage)){
+        superpc.rainbowplot(data, predict$v.pred, sample.labels, competing.predictors)
+      }else{
+        superpc.rainbowplot(data, as.numeric(fit.red$v.test), sample.labels, competing.predictors)
+      }      
+      dev.off()      
+    }
+    
+    if(!is.null(predictDiscrete)){
+      addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = testRow, cols = 1)
+      writeData(wb, sheet = "Test Set Prediction", x = "Rainbow Plot", startRow = testRow)
+      insertImage(wb, sheet = "Test Set Prediction",  file = "rainbowplot.png", width = 4, height = 4, startRow = testRow + 1)
+    }
+    
+    if(!is.null(train.obj)){
+      fname = paste(file, "xlsx", sep = ".")
+      saveWorkbook(wb, file.path(dir, fname), overwrite = TRUE)
+          
+      if(Sys.info()[['sysname']] == "Windows"){
+        shell(file.path(dir, fname))  
+      } else if(Sys.info()[['sysname']] == "Darwin"){
+        system(paste("open", fname))
+      }
+    }
+        
+  })
+  }
+  })  
   
 
   
