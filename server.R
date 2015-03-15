@@ -11,7 +11,6 @@ source("pamr.plotfdr.revised.R")
 source("pamr.plotpredprob.R")
 source("pamr.plotError.R")
 
-# Define server logic required to draw a histogram
 shinyServer(function(input, output) {
   
   ############# Get data
@@ -117,6 +116,14 @@ shinyServer(function(input, output) {
   })
 
   
+  getPamrTrainExact = reactive({
+    dat = getData()
+    if(!is.null(dat)){
+      data = list(x = dat$x, y = dat$y, genenames = dat$genenames, geneid = dat$geneid)    
+      pamr.train(data, threshold = input$threshold, offset.percent = input$s0percentile, sign.contrast = input$sign.contrast, prior = getPrior())
+    }
+  })
+  
   getPamrTrain = reactive({
     dat = getData()
     if(!is.null(dat)){
@@ -124,6 +131,7 @@ shinyServer(function(input, output) {
       pamr.train(data, offset.percent = input$s0percentile, sign.contrast = input$sign.contrast, prior = getPrior())
     }
   })
+
   
   getPamrCv = reactive({
     dat = getData()
@@ -134,15 +142,24 @@ shinyServer(function(input, output) {
     }
   })
 
+  getPamrCvExact = reactive({
+    dat = getData()
+    if(!is.null(dat)){
+      set.seed(input$randomSeed)
+      fit = getPamrTrainExact()
+      pamr.cv(fit, dat)
+    }
+  })
+  
   
   getPamrConfusionTrain = reactive({
     pamrTrain = getPamrTrain()
     if(!is.null(pamrTrain) && !is.na(input$threshold)){
-      
-      maxvalue = round(pamrTrain$threshold[length(pamrTrain$threshold)], 5)
+      pamrTrainExact = getPamrTrainExact()
+      maxvalue = pamrTrain$threshold[length(pamrTrain$threshold)]
       
       if(input$threshold <= maxvalue){
-        pamrConfusion = pamr.confusion.revised(pamrTrain, threshold = input$threshold)
+        pamrConfusion = pamr.confusion.revised(pamrTrainExact, threshold = input$threshold)
         pamrConfusion
       }
     }
@@ -152,11 +169,12 @@ shinyServer(function(input, output) {
     pamrCv = getPamrCv()
     if(!is.null(pamrCv) && !is.na(input$threshold)){
       
+      pamrCvExact = getPamrCvExact()
       pamrTrain = getPamrTrain()
-      maxvalue = round(pamrTrain$threshold[length(pamrTrain$threshold)], 5)
+      maxvalue = pamrTrain$threshold[length(pamrTrain$threshold)]
             
       if(input$threshold <= maxvalue){
-        pamrConfusion = pamr.confusion.revised(pamrCv, threshold = input$threshold)
+        pamrConfusion = pamr.confusion.revised(pamrCvExact, threshold = input$threshold)
         pamrConfusion
       }
     }
@@ -166,8 +184,9 @@ shinyServer(function(input, output) {
     
     pamrTrain = getPamrTrain()
     if(!is.null(pamrTrain) && !is.na(input$threshold)){
+      pamrTrainExact = getPamrTrainExact()
       data = getData()
-      pamr.listgenes(pamrTrain, data, threshold = input$threshold, genenames = TRUE)
+      pamr.listgenes(pamrTrainExact, data, threshold = input$threshold, genenames = TRUE)
     }
   })
   
@@ -203,10 +222,9 @@ shinyServer(function(input, output) {
   
   getSettings = reactive({
     pamrTrain = getPamrTrain()
-    pamrConfusion = getPamrConfusion()
     data = getData()
     
-    if(!is.null(pamrTrain) && !is.null(pamrConfusion)){
+    if(!is.null(pamrTrain) ){
       settingMatrix = matrix(NA, nrow = 5, ncol = 2)
       colnames(settingMatrix) = c("Questions", "Values")
       settingMatrix[1,1] = "Offset Quantile"
@@ -218,7 +236,7 @@ shinyServer(function(input, output) {
       settingMatrix[4,1] = "Contrast Sign"
       settingMatrix[4,2] = pamrTrain$sign.contrast
       settingMatrix[5,1] = "Threshold"
-      settingMatrix[5,2] = round(pamrConfusion$threshold, 5)
+      settingMatrix[5,2] = if(is.na(input$threshold)){NA}else{input$threshold}
       
       prior = as.vector(pamrTrain$prior)
       settingsPriorMatrix = matrix(NA, nrow = 2, ncol = length(prior))
@@ -340,7 +358,8 @@ shinyServer(function(input, output) {
     pamrTrain = getPamrTrain()
     if(!is.null(pamrTrain) && !is.na(input$threshold)){
       data = getData()
-      pamr.plotcen(pamrTrain, data, threshold = input$threshold)
+      pamrTrainExact = getPamrTrainExact()
+      pamr.plotcen(pamrTrainExact, data, threshold = input$threshold)
     }
   })
 
@@ -956,7 +975,7 @@ shinyServer(function(input, output) {
   getPredictRed = reactive({
     data = getDataSurv()
     train.obj = getSurvTrain()
-    if(!is.null(train.obj) && !is.na(input$threshold2) && !is.na(input$princomp)){
+    if(!is.null(train.obj) && !is.na(input$threshold2) && !is.na(input$princomp) && !is.null(data$censoring.status)){
       fit.red = superpc.predict.red(train.obj, data, data, threshold = input$threshold2, n.components = input$princomp)
       fit.red
     }
@@ -965,7 +984,7 @@ shinyServer(function(input, output) {
   getPredictRedFixed = reactive({
     data = getDataSurv()
     train.obj = getSurvTrain()
-    if(!is.null(train.obj) && !is.na(input$threshold2)){
+    if(!is.null(train.obj) && !is.na(input$threshold2) && !is.null(data$censoring.status)){
       fit.red = superpc.predict.red(train.obj, data, data, threshold = input$threshold2)
       fit.red
     }
@@ -975,7 +994,7 @@ shinyServer(function(input, output) {
     cv.obj = getSurvCv()
     data = getDataSurv()
     fit.red = getPredictRed()
-    if(!is.null(fit.red) && !is.na(input$threshold2)){
+    if(!is.null(fit.red) && !is.na(input$threshold2) && !is.null(data$censoring.status)){
       fit.redcv = superpc.predict.red.cv(fit.red, cv.obj, data, threshold = input$threshold2)
       fit.redcv
     }
@@ -1052,7 +1071,7 @@ shinyServer(function(input, output) {
     testData = getTestDataSurv()
     fit.red = getPredictRedTest()
     
-    if(!is.null(data) && !is.null(testData) && !is.null(competingPredictorFit) && !is.na(input$threshold2) && !is.na(input$princomp)){
+    if(!is.null(data) && !is.null(testData) && !is.null(competingPredictorFit) && !is.na(input$threshold2) && !is.na(input$princomp) && !is.null(data$censoring.status)){
       sample.labels = competingPredictorFit$sample.labels
       competing.predictors = competingPredictorFit$competing.predictors
       if(is.na(input$shrinkage)){
@@ -1067,7 +1086,7 @@ shinyServer(function(input, output) {
   output$responsePredictionPlot = renderPlot({
     predict = getPredictDiscrete()
     testData = getTestDataSurv()
-    if(!is.null(predict)){
+    if(!is.null(predict) && !is.null(testData$censoring.status)){
       plot(survfit(Surv(testData$y,testData$censoring.status)~predict$v.pred), col=2:3, xlab="time", ylab="Prob survival")  
     }
   })
@@ -1109,7 +1128,9 @@ shinyServer(function(input, output) {
   
   output$plotredLrtest = renderPlot({
     fit.redcv = getPredictRedCv()
-    if(!is.null(fit.redcv)){
+    data = getDataSurv()
+    
+    if(!is.null(fit.redcv) && !is.null(data$censoring.status)){
       superpc.plotred.lrtest(fit.redcv)  
     }
   })
@@ -1137,21 +1158,14 @@ shinyServer(function(input, output) {
   })
   
   output$threshold2 = renderUI({
-    cv.obj = getSurvCv()
-    if(!is.null(cv.obj)){
-      maxvalue = round(cv.obj$threshold[length(cv.obj$threshold)], 5)
+
+    lrtest.obj = getlrtestObj()
+    if(!is.null(lrtest.obj)){
+      maxvalue = round(lrtest.obj$threshold[length(lrtest.obj$threshold)], 5)
       numericInput("threshold2", label = paste("Threshold", "(max=", maxvalue, ")", sep = ""), min = 0, max = maxvalue, value = NULL, step = 0.000001)  
     }
   })
-  
-  output$shrinkage = renderUI({
-    fit.red = getPredictRedFixed()
-    if(!is.null(fit.red)){
-      maxvalue = round(fit.red$shrinkages[length(fit.red$shrinkages)], 5)
-      numericInput("shrinkage", label = paste("Shrinkage", "(max=", maxvalue, ")", sep = ""), min = 0, max = maxvalue, value = NULL, step = 0.000001)
-    }
-  })
-  
+    
   output$survdata = renderDataTable({
     data = getDataSurv()
     if(!is.null(data)){
@@ -1198,14 +1212,15 @@ shinyServer(function(input, output) {
     competingPredictorFit = getCompetingPredictorFit()
     data = getDataSurv()
     testData = getTestDataSurv()
-    if(!is.null(data) && !is.null(testData) && !is.null(competingPredictorFit) && !is.na(input$threshold2) && !is.na(input$princomp)){
+    if(!is.null(data) && !is.null(testData) && !is.null(competingPredictorFit) && !is.na(input$threshold2) && !is.na(input$princomp) && !is.null(data$censoring.status)){
       "Rainbow Plot"  
     }
   })
   
   output$responsePredictionPlotText = renderText({
     predict = getPredictDiscrete()
-    if(!is.null(predict)){
+    data = getDataSurv()
+    if(!is.null(predict) && !is.null(data$censoring.status) ){
       "Response Prediction Plot"
     }
   })
@@ -1242,7 +1257,8 @@ shinyServer(function(input, output) {
   
   output$plotredLrtestText = renderText({
     fit.redcv = getPredictRedCv()
-    if(!is.null(fit.redcv)){
+    data = getDataSurv()
+    if(!is.null(fit.redcv) && !is.null(data$censoring.status)){
       "Reduced Model CV"  
     }
   })
@@ -1305,7 +1321,7 @@ shinyServer(function(input, output) {
     predictDiscrete = getPredictDiscrete()
     competingPredictorFit = getCompetingPredictorFit()
     fit.red = getPredictRedTest()
-       
+    fit = getPredictRedTest()   
     
     titleStyle = createStyle(fontSize = 14, fontColour = "#FFFFFF", halign = "center", fgFill = "#4F81BD")
     wb = createWorkbook()  
@@ -1372,13 +1388,13 @@ shinyServer(function(input, output) {
       cvRow = 24
     }
     
-    if(!is.null(fit.redcv)){
+    if(!is.null(fit.redcv) && !is.null(data$censoring.status)){
       png(file = "reducedmodelcv.png")
       superpc.plotred.lrtest(fit.redcv) 
       dev.off()
     }
     
-    if(!is.null(fit.redcv)){
+    if(!is.null(fit.redcv) && !is.null(data$censoring.status)){
       addStyle(wb, sheet = "Cross Validation", titleStyle, rows = cvRow, cols = 1)
       writeData(wb, sheet = "Cross Validation", x = "Reduced model CV", startRow = cvRow)
       insertImage(wb, sheet = "Cross Validation",  file = "reducedmodelcv.png", width = 4, height = 4, startRow = cvRow + 1)
@@ -1425,13 +1441,13 @@ shinyServer(function(input, output) {
       testRow = testRow + 3
     }
 
-    if(!is.null(predictDiscrete)){
+    if(!is.null(predictDiscrete) && !is.null(data$censoring.status)){
       png(file = "testresponseprediction.png")
       plot(survfit(Surv(testData$y,testData$censoring.status)~predictDiscrete$v.pred), col=2:3, xlab="time", ylab="Prob survival")  
       dev.off()
     }
     
-    if(!is.null(predictDiscrete)){
+    if(!is.null(predictDiscrete) && !is.null(data$censoring.status)){
       addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = testRow, cols = 1)
       writeData(wb, sheet = "Test Set Prediction", x = "Response Prediction Plot", startRow = testRow)
       insertImage(wb, sheet = "Test Set Prediction",  file = "testresponseprediction.png", width = 4, height = 4, startRow = testRow + 1)
@@ -1439,7 +1455,7 @@ shinyServer(function(input, output) {
     }
 
     
-    if(!is.null(data) && !is.null(testData) && !is.null(competingPredictorFit) && !is.na(input$threshold2) && !is.na(input$princomp)){
+    if(!is.null(data) && !is.null(testData) && !is.null(competingPredictorFit) && !is.na(input$threshold2) && !is.na(input$princomp) && !is.null(data$censoring.status)){
       sample.labels = competingPredictorFit$sample.labels
       competing.predictors = competingPredictorFit$competing.predictors
       png(file = "rainbowplot.png")
@@ -1451,7 +1467,7 @@ shinyServer(function(input, output) {
       dev.off()      
     }
     
-    if(!is.null(predictDiscrete)){
+    if(!is.null(data) && !is.null(testData) && !is.null(competingPredictorFit) && !is.na(input$threshold2) && !is.na(input$princomp) && !is.null(data$censoring.status)){
       addStyle(wb, sheet = "Test Set Prediction", titleStyle, rows = testRow, cols = 1)
       writeData(wb, sheet = "Test Set Prediction", x = "Rainbow Plot", startRow = testRow)
       insertImage(wb, sheet = "Test Set Prediction",  file = "rainbowplot.png", width = 4, height = 4, startRow = testRow + 1)

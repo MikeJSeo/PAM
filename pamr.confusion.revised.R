@@ -1,8 +1,11 @@
 pamr.confusion.revised = function(fit, threshold) {
   
-  ii <- (1:length(fit$threshold))[round(fit$threshold,5) >= threshold]
-  ii <- ii[1]
-  predicted <- fit$yhat[, ii]
+  if(class(fit$yhat) == "data.frame"){
+    predicted = fit$yhat[,1]
+  }else{
+    predicted = fit$yhat  
+  }
+  
   
   if(!is.null(fit$y)){    
     true <- fit$y[fit$sample.subset]
@@ -30,6 +33,6 @@ pamr.confusion.revised = function(fit, threshold) {
   tt <- cbind(tt, apply(tt1, 1, sum)/apply(tt, 1, sum))
   dimnames(tt)[[2]][ncol(tt)] <- "Class Error rate"
   
-  ttlist = list(tt = tt, threshold = fit$threshold[ii])
+  ttlist = list(tt = tt, threshold = fit$threshold)
   
 }

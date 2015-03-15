@@ -51,9 +51,13 @@ shinyUI(fluidPage(
     ),
     
     conditionalPanel(condition = "input.analysisType == 'Survival' || input.analysisType == 'Regression'",
-      numericInput("princomp", label = "Princ Comp number for gene scores", min = 1, max = 3, value = NULL, step = 1),               
-      uiOutput(outputId = "shrinkage")
+      numericInput("princomp", label = "Princ Comp number for gene scores", min = 1, max = 3, value = NULL, step = 1)
     ),
+    
+    conditionalPanel(condition = "input.analysisType == 'Survival'",
+      numericInput("shrinkage", label ="Shrinkage", min = 0, value = NULL, step = 0.000001)
+    ),
+    
    
     
     numericInput("randomSeed", label = "Random Number Generator Seed", min = 0, max = 1000000, value = 420473, step = 1),
