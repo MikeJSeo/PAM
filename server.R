@@ -511,8 +511,9 @@ shinyServer(function(input, output) {
   })
   
   output$testErrorPlotText = renderText({
-    pamrPredict =getPamrPredict()
-    if(!is.null(pamrPredict)){
+    pamrTrain = getPamrTrain()
+    testData = getTestData()
+    if(!is.null(testData) && !is.null(pamrTrain)){
       "Test Error"
     }
   })
