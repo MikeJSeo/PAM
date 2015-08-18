@@ -13,7 +13,7 @@ pamr.plotTestError = function(fit, testData){
   par(cex = 0.7)
   threshold = fit$threshold
   ylength = sum(!is.na(y))
-  errorrate = vector(mode = "logical", length = ylength)
+  errorrate = vector(mode = "logical", length = length(threshold))
   
   for(i in 1: length(threshold)){
     
