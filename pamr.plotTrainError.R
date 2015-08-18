@@ -20,7 +20,8 @@ pamr.plotTestError = function(fit, testData){
     predict = pamr.predict(fit, x, threshold = threshold[i], type = "class")
     errorrate[i] = sum(y != predict, na.rm = TRUE) / ylength
   }
-  
+  print(fit$threshold)
+  print(errorrate)
   plot(fit$threshold, errorrate, ylim = c(0, 0.9), xlab = "Threshold", ylab = "Test Error", col = 4)
   axis(3, at = fit$threshold, labels = fit$nonzero)  
 }
