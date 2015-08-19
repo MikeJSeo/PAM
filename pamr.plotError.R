@@ -14,11 +14,7 @@ pamr.plotTestError = function(fit, testData){
   threshold = fit$threshold
   ylength = sum(!is.na(y))
   errorrate = vector(mode = "logical", length = length(threshold))
-<<<<<<< HEAD
-  print("Hi")
-=======
-  
->>>>>>> origin/master
+
   for(i in 1: length(threshold)){
     predict = pamr.predict(fit, x, threshold = threshold[i], type = "class")
     errorrate[i] = sum(y != predict, na.rm = TRUE) / ylength
