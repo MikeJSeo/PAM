@@ -1,4 +1,5 @@
-# Web-enabled and Cross-platform PAM via Shiny
+Web-enabled and Cross-platform PAM via Shiny
+============================================
 
 First make sure you have a very recent version of R or RStudio.
 
@@ -7,8 +8,10 @@ session.
 
 ``` r
 install.packages(c("pamr", "matrixStats", "superpc", "shiny", "openxlsx"))
-source("http://bioconductor.org/biocLite.R")
-biocLite("impute")
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(c("impute"))
 ```
 
 You only need to do this once.

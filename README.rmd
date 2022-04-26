@@ -12,8 +12,10 @@ Next install required packages. Cut and paste what's below in an R session.
 
 ```{r, eval = FALSE}
 install.packages(c("pamr", "matrixStats", "superpc", "shiny", "openxlsx"))
-source("http://bioconductor.org/biocLite.R")
-biocLite("impute")
+
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(c("impute"))
 ```
 You only need to do this once.
 
